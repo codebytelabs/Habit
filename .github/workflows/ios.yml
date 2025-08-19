@@ -1,0 +1,53 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [ main, flexhabits-* ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: macos-14
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          sudo xcode-select -s "/Applications/Xcode_15.4.app/Contents/Developer" || true
+          xcodebuild -version
+
+      - name: Install SwiftLint
+        run: |
+          brew update
+          brew install swiftlint || brew upgrade swiftlint
+          swiftlint version
+
+      - name: SwiftLint
+        run: |
+          swiftlint --strict || true
+
+      - name: Build and Test (Simulator)
+        run: |
+          xcodebuild \
+            -project Habit.xcodeproj \
+            -scheme Habit \
+            -destination 'platform=iOS Simulator,name=iPhone 15,OS=latest' \
+            -configuration Debug \
+            -enableCodeCoverage YES \
+            clean build test | xcpretty || true
+        env:
+          NSUnbufferedIO: "YES"
+
+      - name: Upload Test Results (if any)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcode-test-logs
+          path: |
+            ~/Library/Logs/DiagnosticReports/*.crash
+            ~/Library/Logs/scan/*.log
+            build/reports/*.xml
